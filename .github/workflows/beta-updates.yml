@@ -1,0 +1,58 @@
+name: Publish approved Passport beta manifest
+
+on:
+  release:
+    # Includes publishing a draft as a prerelease; "prereleased" does not.
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Already-published approved beta tag to recover (never a draft)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+# Serialize the whole read/verify/deploy transaction. Every execution rescans all
+# published betas, so delayed/older events cannot roll the channel backwards.
+concurrency:
+  group: passport-beta-pages
+  cancel-in-progress: false
+
+jobs:
+  publish-beta:
+    if: >-
+      github.repository == 'Shombot/passport-releases' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.action == 'published' && github.event.release.prerelease == true && github.event.release.draft == false))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The public repository's approved publisher code, never private source.
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.22.0
+      - name: Verify published beta and prepare monotonic manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PASSPORT_UPDATER_PUBLIC_KEY: ${{ vars.PASSPORT_UPDATER_PUBLIC_KEY }}
+        run: node scripts/beta-manifest.mjs .pages
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: .pages
+      - name: Atomically deploy beta channel
+        id: deployment
+        uses: actions/deploy-pages@v4
