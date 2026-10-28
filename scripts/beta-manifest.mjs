@@ -146,6 +146,10 @@ export async function prepareBetaManifest({
   await writeFile(temporary, JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx' });
   await rename(temporary, resolve(destination, 'latest.json'));
   await writeFile(resolve(outputDirectory, '.nojekyll'), '');
+  await writeFile(
+    resolve(outputDirectory, 'index.html'),
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Passport Updates</title></head><body><h1>Passport Beta Updates</h1></body></html>\n',
+  );
   return manifest;
 }
 
